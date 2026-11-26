@@ -1,0 +1,7 @@
+# your own host list and anything else machine-specific
+local/
+# screenshots contain other users' names and process command lines
+shots/
+__pycache__/
+*.pyc
+.DS_Store

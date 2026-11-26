@@ -1,0 +1,5 @@
+{
+  "_comment": "Copy to local/hosts.json (git-ignored). Keys are group names, values are Host names from your ~/.ssh/config.",
+  "lab-a": ["gpu-node1", "gpu-node2", "gpu-node3"],
+  "lab-b": ["big-box1", "big-box2"]
+}
