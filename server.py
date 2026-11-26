@@ -3,6 +3,7 @@
 
 Usage: python3 server.py              (hosts/groups from local/hosts.json; see hosts.example.json)
        python3 server.py host1 host2 …  (one ad-hoc group)
+       python3 server.py --demo         (fictional servers and data, no SSH)
 Then open http://127.0.0.1:8765
 
 If a host fails and ~/.ssh/config has an "r<host>" alias (e.g. a ProxyJump through a gateway),
@@ -24,7 +25,13 @@ from urllib.parse import parse_qs, urlparse
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+DEMO = "--demo" in sys.argv[1:]
+
+
 def load_groups():
+    if DEMO:
+        import demo
+        return demo.GROUPS
     if sys.argv[1:]:
         return [{"name": "hosts", "hosts": sys.argv[1:]}]
     path = os.environ.get("GPUMON_HOSTS") or os.path.join(HERE, "local", "hosts.json")
@@ -308,9 +315,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ensure_ctl_dir()
-    for h in HOSTS:
-        threading.Thread(target=poll, args=(h,), daemon=True).start()
+    if DEMO:
+        import demo
+        threading.Thread(target=demo.run, args=(state, history, lock, sample, INTERVAL, HISTORY_SECS), daemon=True).start()
+        print("gpumon: demo mode, synthetic data, no SSH", flush=True)
+    else:
+        ensure_ctl_dir()
+        for h in HOSTS:
+            threading.Thread(target=poll, args=(h,), daemon=True).start()
     for g in GROUPS:
         print(f"gpumon [{g['name']}]: {', '.join(g['hosts'])}", flush=True)
     print(f"gpumon: http://{BIND}:{PORT}", flush=True)

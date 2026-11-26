@@ -10,6 +10,31 @@ A small, dependency-free dashboard for watching GPU / CPU usage on shared lab se
 
 Nothing is installed on the servers. All you need is key-based SSH access and `nvidia-smi` there.
 
+![Overview: every server at a glance, grouped by lab](docs/overview.png)
+
+Click a server for its history charts, per-GPU details, processes, disks and logged-in users:
+
+![Server page: charts, GPUs and processes](docs/server-detail.png)
+
+<details>
+<summary>Light mode</summary>
+
+![Server page in light mode](docs/server-detail-light.png)
+
+</details>
+
+*Screenshots use the built-in demo mode, so all servers, users and jobs are made up.*
+
+## Try it without any servers
+
+```bash
+python3 server.py --demo
+open http://127.0.0.1:8765
+```
+
+Demo mode makes up 9 servers with busy and idle GPUs, one offline server, one faulty GPU and an hour of
+history. It doesn't use SSH or the network.
+
 ## Setup
 
 ### 1. Make sure you can SSH in without a password
