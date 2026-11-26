@@ -17,7 +17,7 @@ Click a server for its history charts, per-GPU details, processes, disks and log
 ![Server page: charts, GPUs and processes](docs/server-detail.png)
 
 <details>
-<summary>Light mode</summary>
+<summary>Light mode (switch with the ◐ button in the top bar)</summary>
 
 ![Server page in light mode](docs/server-detail-light.png)
 
@@ -128,5 +128,7 @@ on networks you trust. Never use `0.0.0.0` on a machine with a public IP.
 - **Click a server** for charts (GPU util / memory / temperature / power, CPU & RAM, load), per-GPU
   details, top processes, disks and logged-in users. Hover the charts for exact values, and click a
   legend entry to hide that series.
+- **Theme:** the ◐ / ☀ / ☾ button in the top bar cycles Auto (follows your OS) → Light → Dark and is
+  remembered. Add `?theme=light` or `?theme=dark` to the URL to force one, e.g. for a wall display.
 - **Keyboard:** on a server page, `←` / `→` switch servers and `Esc` goes back.
 - A GPU shown as **fault** means `nvidia-smi` can't reach that card. It usually needs a reboot or an admin.

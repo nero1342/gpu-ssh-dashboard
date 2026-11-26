@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lab GPU Monitor</title>
+<script>
+try {
+  const q = new URLSearchParams(location.search).get("theme");
+  const t = q || JSON.parse(localStorage.getItem("gpumon.theme") || '"auto"');
+  if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+} catch (e) {}
+</script>
 <style>
 :root {
   --bg: #eef0f5; --card: rgba(255,255,255,.74); --card2: rgba(255,255,255,.55); --tipbg: #ffffff;
@@ -14,13 +21,19 @@
   --blob-o: .30; --g1: hsl(220 85% 60%); --g2: hsl(270 80% 62%); --g3: hsl(185 85% 55%);
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0a0c10; --card: rgba(22,25,32,.70); --card2: rgba(30,34,43,.55); --tipbg: #1a1d24;
+  :root:not([data-theme="light"]) { --bg: #0a0c10; --card: rgba(22,25,32,.70); --card2: rgba(30,34,43,.55); --tipbg: #1a1d24;
     --line: rgba(255,255,255,.08); --text: #e8eaee; --muted: #8d95a1; --faint: #5f6773;
     --track: rgba(255,255,255,.07); --ok: #34d07f; --okbg: rgba(52,208,127,.10); --warn: #f2a33a; --bad: #f25c5c; --accent: #7b93ff;
     --shadow: 0 1px 0 rgba(255,255,255,.03) inset; --shadow-h: 0 10px 32px rgba(0,0,0,.5);
     --s0:#7b93ff; --s1:#f2a33a; --s2:#34c79a; --s3:#f2667d; --s4:#a98bfa; --s5:#38bdd8; --s6:#f06aa8; --s7:#9bd240; --s8:#d4a24c; --s9:#94a3b8;
     --blob-o: .26; }
 }
+:root[data-theme="dark"] { --bg: #0a0c10; --card: rgba(22,25,32,.70); --card2: rgba(30,34,43,.55); --tipbg: #1a1d24;
+    --line: rgba(255,255,255,.08); --text: #e8eaee; --muted: #8d95a1; --faint: #5f6773;
+    --track: rgba(255,255,255,.07); --ok: #34d07f; --okbg: rgba(52,208,127,.10); --warn: #f2a33a; --bad: #f25c5c; --accent: #7b93ff;
+    --shadow: 0 1px 0 rgba(255,255,255,.03) inset; --shadow-h: 0 10px 32px rgba(0,0,0,.5);
+    --s0:#7b93ff; --s1:#f2a33a; --s2:#34c79a; --s3:#f2667d; --s4:#a98bfa; --s5:#38bdd8; --s6:#f06aa8; --s7:#9bd240; --s8:#d4a24c; --s9:#94a3b8;
+    --blob-o: .26; }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
 html, body { margin: 0; color: var(--text); }
@@ -130,6 +143,11 @@ main { max-width: 1680px; margin: 0 auto; padding: 16px 24px 32px; }
 .tile.fault { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); background: color-mix(in srgb, var(--bad) 10%, transparent); }
 .tile.fault .tu { color: var(--bad); }
 .grow.fault { border-color: color-mix(in srgb, var(--bad) 50%, var(--line)); }
+
+/* theme toggle */
+.tbtn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.tbtn:hover { border-color: var(--faint); color: var(--text); }
+.tbtn .ic { font-size: 13px; line-height: 1; }
 
 /* server filter */
 .fwrap { position: relative; }
@@ -271,6 +289,7 @@ td.c { color: var(--muted); max-width: 0; width: 100%; overflow: hidden; text-ov
   <span class="crumb" id="crumb"></span>
   <span class="spacer"></span>
   <div class="stat-chips" id="chips"></div>
+  <button class="chip glass tbtn" id="tbtn" title="Theme: follow system / light / dark"></button>
   <div class="fwrap"><button class="chip glass fbtn" id="fbtn">Servers ▾</button><div class="pop" id="pop"></div></div>
 </div></div>
 <main id="app"><div class="empty">Connecting…</div></main>
@@ -721,6 +740,22 @@ addEventListener("keydown", e => {
   if (e.key === "ArrowLeft") location.hash = "#/h/" + encodeURIComponent(names[(i - 1 + names.length) % names.length]);
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => S.charts.forEach(c => c.draw()));
+
+/* ---------- theme toggle: auto → light → dark ---------- */
+const THEMES = { auto: ["◐", "Auto"], light: ["☀", "Light"], dark: ["☾", "Dark"] };
+let theme = new URLSearchParams(location.search).get("theme") || store.get("theme", "auto");
+if (!THEMES[theme]) theme = "auto";
+function applyTheme() {
+  if (theme === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  $("#tbtn").innerHTML = `<span class="ic">${THEMES[theme][0]}</span>${THEMES[theme][1]}`;
+  S.charts.forEach(c => c.draw());
+}
+$("#tbtn").addEventListener("click", () => {
+  theme = { auto: "light", light: "dark", dark: "auto" }[theme];
+  store.set("theme", theme); applyTheme();
+});
+applyTheme();
 
 loadHistory().then(tick);
 setInterval(tick, 2000);
