@@ -48,6 +48,9 @@ GROUPS = load_groups()
 HOSTS = [h for g in GROUPS for h in g["hosts"]]
 GROUP_OF = {h: g["name"] for g in GROUPS for h in g["hosts"]}
 PORT = int(os.environ.get("GPUMON_PORT", "8765"))
+# 127.0.0.1 = this machine only. Set e.g. a VPN address to share it; there is no login, and the page
+# shows every user's process command lines, so avoid 0.0.0.0 on public networks.
+BIND = os.environ.get("GPUMON_BIND", "127.0.0.1")
 INTERVAL = float(os.environ.get("GPUMON_INTERVAL", "3"))
 HISTORY_SECS = float(os.environ.get("GPUMON_HISTORY", "3600"))
 # SSH connection-sharing sockets. Kept on local /tmp: some network/ACL home directories refuse the
@@ -310,8 +313,8 @@ if __name__ == "__main__":
         threading.Thread(target=poll, args=(h,), daemon=True).start()
     for g in GROUPS:
         print(f"gpumon [{g['name']}]: {', '.join(g['hosts'])}", flush=True)
-    print(f"gpumon: http://127.0.0.1:{PORT}", flush=True)
+    print(f"gpumon: http://{BIND}:{PORT}", flush=True)
     try:
-        ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+        ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
     except KeyboardInterrupt:
         pass

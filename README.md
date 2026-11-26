@@ -68,7 +68,21 @@ open http://127.0.0.1:8765        # macOS; on Linux use xdg-open or just paste t
 
 To try it without a config file, pass hosts directly: `python3 server.py gpu-node1 gpu-node2`.
 
-The dashboard listens on `127.0.0.1` only, so it is not reachable from other machines.
+The dashboard listens on `127.0.0.1` only, so it is not reachable from other machines. To open it from
+your laptop while it runs on a server, either tunnel it:
+
+```bash
+ssh -N -L 8765:127.0.0.1:8765 my-server     # then open http://127.0.0.1:8765
+```
+
+or, if the server is on a private VPN, bind to that VPN address so anyone on the VPN can open it directly:
+
+```bash
+GPUMON_BIND=10.0.0.1 python3 server.py      # then open http://10.0.0.1:8765
+```
+
+There is no login, and the page shows every user's process command lines, so only bind to addresses
+on networks you trust. Never use `0.0.0.0` on a machine with a public IP.
 
 ## Options
 
@@ -76,6 +90,7 @@ The dashboard listens on `127.0.0.1` only, so it is not reachable from other mac
 |----------------------|---------------------|----------------------------------|
 | `GPUMON_HOSTS`       | `local/hosts.json`  | path to the host list            |
 | `GPUMON_PORT`        | `8765`              | web port                         |
+| `GPUMON_BIND`        | `127.0.0.1`         | address to listen on (see below) |
 | `GPUMON_INTERVAL`    | `3`                 | seconds between polls            |
 | `GPUMON_HISTORY`     | `3600`              | seconds of history kept for charts |
 | `GPUMON_CTL_DIR`     | `/tmp/gpumon-<uid>` | private folder for SSH connection-sharing sockets |
