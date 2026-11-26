@@ -50,7 +50,18 @@ GROUP_OF = {h: g["name"] for g in GROUPS for h in g["hosts"]}
 PORT = int(os.environ.get("GPUMON_PORT", "8765"))
 INTERVAL = float(os.environ.get("GPUMON_INTERVAL", "3"))
 HISTORY_SECS = float(os.environ.get("GPUMON_HISTORY", "3600"))
-CTL_DIR = os.path.expanduser("~/.ssh/gpumon-ctl")
+# SSH connection-sharing sockets. Kept on local /tmp: some network/ACL home directories refuse the
+# hard link ssh uses to create them ("muxserver_listen: link mux listener … Operation not permitted"),
+# and socket paths must stay short (~104 chars on macOS).
+CTL_DIR = os.environ.get("GPUMON_CTL_DIR") or f"/tmp/gpumon-{os.getuid()}"
+
+
+def ensure_ctl_dir():
+    os.makedirs(CTL_DIR, mode=0o700, exist_ok=True)
+    st = os.stat(CTL_DIR)
+    if st.st_uid != os.getuid():
+        sys.exit(f"gpumon: {CTL_DIR} belongs to another user; set GPUMON_CTL_DIR to a private directory")
+    os.chmod(CTL_DIR, 0o700)
 
 GPU_FIELDS = ("index,uuid,name,utilization.gpu,memory.used,memory.total,temperature.gpu,"
               "power.draw,power.limit,fan.speed,clocks.sm,clocks.max.sm")
@@ -236,7 +247,6 @@ def ssh_routes(host):
 
 
 def poll(host):
-    os.makedirs(CTL_DIR, mode=0o700, exist_ok=True)
     have_info = False
     routes, ri = ssh_routes(host), 0
     while True:
@@ -295,6 +305,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    ensure_ctl_dir()
     for h in HOSTS:
         threading.Thread(target=poll, args=(h,), daemon=True).start()
     for g in GROUPS:

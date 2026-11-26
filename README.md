@@ -78,6 +78,7 @@ The dashboard listens on `127.0.0.1` only, so it is not reachable from other mac
 | `GPUMON_PORT`        | `8765`              | web port                         |
 | `GPUMON_INTERVAL`    | `3`                 | seconds between polls            |
 | `GPUMON_HISTORY`     | `3600`              | seconds of history kept for charts |
+| `GPUMON_CTL_DIR`     | `/tmp/gpumon-<uid>` | private folder for SSH connection-sharing sockets |
 
 ## Using the dashboard
 
