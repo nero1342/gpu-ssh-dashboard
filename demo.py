@@ -56,6 +56,16 @@ class Host:
         self.uptime0 = t0 - self.rng.uniform(3, 60) * 86400
         self.pid = self.rng.randint(100000, 900000)
         self.gpus = [{"index": i, "job": None, "util": 0.0} for i in range(n)]
+        TiB = 1024 ** 4
+        self.disks = [{"fs": "/dev/nvme0n1p2", "type": "ext4", "mount": "/", "label": "/", "system": True,
+                       "total": 1.7 * TiB, "used": 1.7 * TiB * self.rng.uniform(0.3, 0.7)}]
+        for k in range(self.rng.choice([1, 2, 3, 4])):
+            size = self.rng.choice([3.5, 7.3, 7.3, 14.0]) * TiB
+            self.disks.append({"fs": f"/dev/sd{chr(98 + k)}", "type": "ext4", "mount": f"/data/add_disk{k}",
+                               "label": f"/data/add_disk{k}", "system": False, "total": size,
+                               "used": size * min(0.995, self.rng.uniform(0.45, 1.05))})
+        for d in self.disks:
+            d["avail"] = max(0.0, d["total"] * 0.98 - d["used"])
         for g in self.gpus:
             if self.rng.random() < 0.6:
                 self._start_job(g, t0 - self.rng.uniform(600, 3 * 86400))
@@ -124,8 +134,7 @@ class Host:
             "mem_total": ram, "mem_avail": ram - used, "swap_total": 8 * 1073741824, "swap_free": 7.2 * 1073741824,
             "load": [round(load1, 2), round(load1 * 0.95, 2), round(load1 * 0.9, 2)], "uptime": t - self.uptime0,
             "gpus": gpus, "top": top[:12],
-            "disks": [{"fs": "/dev/nvme0n1p2", "mount": "/", "total": 1.8e12, "used": 1.8e12 * 0.62},
-                      {"fs": "/dev/md0", "mount": "/data", "total": 14e12, "used": 14e12 * 0.81}],
+            "disks": self.disks,
             "who": [{"user": u, "sessions": c} for u, c in sorted(who.items())],
             "info": {"os": "Ubuntu 24.04.1 LTS", "kernel": "6.8.0-45-generic", "cpumodel": self.cpumodel,
                      "driver": "550.120", "cuda": "12.4"},

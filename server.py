@@ -26,6 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 DEMO = "--demo" in sys.argv[1:]
+ALIASES = {}  # host -> name other machines use for it (e.g. its NFS export name), from "_aliases"
+DATA_ROOT = os.environ.get("GPUMON_DATA_ROOT", "/data").rstrip("/") or "/data"
 
 
 def load_groups():
@@ -45,6 +47,7 @@ def load_groups():
         )
     with open(path) as f:
         cfg = json.load(f)
+    ALIASES.update(cfg.get("_aliases") or {})
     groups = [{"name": k, "hosts": v} for k, v in cfg.items() if not k.startswith("_") and v]
     if not groups:
         sys.exit(f"gpumon: {path} has no hosts")
@@ -86,7 +89,7 @@ echo '##GPU'; nvidia-smi --query-gpu=%s --format=csv,noheader,nounits 2>&1
 echo '##APPS'; nvidia-smi --query-compute-apps=gpu_uuid,pid,used_memory --format=csv,noheader,nounits 2>/dev/null
 echo '##PS'; for p in $(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | sort -u); do ps -o pid=,user:32=,etime=,args= -p "$p" 2>/dev/null; done
 echo '##TOP'; ps -eo pid=,user:32=,pcpu=,pmem=,etime=,args= --sort=-pcpu 2>/dev/null | head -12
-echo '##DISK'; df -P -B1 / /home /data /scratch 2>/dev/null | tail -n +2
+echo '##DISK'; timeout 8 df -lPT -B1 -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs 2>/dev/null | tail -n +2
 echo '##WHO'; who 2>/dev/null | awk '{print $1}' | sort | uniq -c
 echo '##END'
 """ % GPU_FIELDS
@@ -100,7 +103,8 @@ echo '##CUDA'; nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | awk '{
 echo '##END'
 """
 
-state = {h: {"host": h, "group": GROUP_OF[h], "ok": False, "error": "connecting…", "updated": None, "info": {}, "via": None}
+state = {h: {"host": h, "group": GROUP_OF[h], "ok": False, "error": "connecting…", "updated": None, "info": {}, "via": None,
+             "alias": ALIASES.get(h)}
          for h in HOSTS}
 history = {h: deque(maxlen=max(10, int(HISTORY_SECS / INTERVAL))) for h in HOSTS}
 lock = threading.Lock()
@@ -190,12 +194,7 @@ def parse(out):
             top.append({"pid": parts[0], "user": parts[1], "cpu": num(parts[2]), "mem": num(parts[3]),
                         "etime": parts[4], "cmd": parts[5] if len(parts) > 5 else ""})
 
-    disks, seen = [], set()
-    for l in sec.get("DISK", []):
-        parts = l.split()
-        if len(parts) >= 6 and parts[0] not in seen:
-            seen.add(parts[0])
-            disks.append({"fs": parts[0], "mount": parts[5], "total": num(parts[1]), "used": num(parts[2])})
+    disks = parse_disks(sec.get("DISK", []))
 
     who = []
     for l in sec.get("WHO", []):
@@ -217,6 +216,37 @@ def parse(out):
         "load": load, "uptime": num(first(sec, "UPTIME", "")),
         "gpus": gpus, "top": top, "disks": disks, "who": who,
     }
+
+
+def _natural(s):
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s)]
+
+
+def parse_disks(lines):
+    """Local disks mounted at / or under DATA_ROOT, from `df -lPT -B1`.
+
+    Each gets a `label`: its mount point, except that when DATA_ROOT is not a separate disk the root
+    disk is labelled DATA_ROOT (that's where the data lives) and flagged `system`.
+    """
+    disks, seen = [], set()
+    for l in lines:
+        p = l.split()
+        if len(p) < 7:
+            continue
+        fs, fstype, size, used, avail, mount = p[0], p[1], num(p[2]), num(p[3]), num(p[4]), " ".join(p[6:])
+        if not size or fs in seen:
+            continue
+        if mount != "/" and mount != DATA_ROOT and not mount.startswith(DATA_ROOT + "/"):
+            continue
+        seen.add(fs)
+        disks.append({"fs": fs, "type": fstype, "mount": mount, "label": mount, "total": size, "used": used,
+                      "avail": avail, "system": mount == "/"})
+    if not any(d["mount"] == DATA_ROOT for d in disks):
+        for d in disks:
+            if d["mount"] == "/":
+                d["label"] = DATA_ROOT  # data folder lives on the system disk
+    disks.sort(key=lambda d: (d["mount"] != "/", _natural(d["label"])))
+    return disks
 
 
 def sample(d):

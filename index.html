@@ -144,6 +144,18 @@ main { max-width: 1680px; margin: 0 auto; padding: 16px 24px 32px; }
 .tile.fault .tu { color: var(--bad); }
 .grow.fault { border-color: color-mix(in srgb, var(--bad) 50%, var(--line)); }
 
+/* storage */
+.store { margin-top: 10px; }
+.sstrip { display: flex; gap: 3px; height: 9px; }
+.sseg { position: relative; background: var(--track); border-radius: 3px; overflow: hidden; min-width: 8px; cursor: default; }
+.sseg i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+.aka { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; font-weight: 500; vertical-align: 2px; }
+.stot { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 10px 0 4px; border-bottom: 1px solid var(--line); }
+.stot b { color: var(--text); }
+.dsub { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--faint); margin-top: 4px; flex-wrap: wrap; }
+.tag { font-size: 10.5px; border-radius: 5px; padding: 0 5px; margin-left: 6px; border: 1px solid var(--line); color: var(--muted); font-weight: 500; }
+.tag.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+
 /* theme toggle */
 .tbtn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .tbtn:hover { border-color: var(--faint); color: var(--text); }
@@ -276,7 +288,7 @@ td.c { color: var(--muted); max-width: 0; width: 100%; overflow: hidden; text-ov
   .chart { min-height: 0; }
   .cw { flex: 1; min-height: 60px; height: auto; }
   .dright { min-height: 0; }
-  .gpus { flex: 0 1 auto; min-height: 0; overflow: auto; }
+  .gpus { flex: 0 1 auto; min-height: 0; max-height: 50%; overflow: auto; }
   .tabs-panel { flex: 1 1 180px; min-height: 160px; }
   .tab-body { flex: 1; min-height: 0; }
 }
@@ -317,6 +329,17 @@ function userColor(u) { let h = 0; for (const c of u) h = (h * 31 + c.charCodeAt
 const avatar = u => `<span class="avatar" style="background:${userColor(u)}">${esc(u[0]?.toUpperCase() || "?")}</span>`;
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const resolve = c => c.startsWith("var(") ? cssVar(c.slice(4, -1)) : c;
+const fmtSize = b => { if (b == null) return "–"; const u = ["B", "K", "M", "G", "T", "P"]; let i = 0; while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; } return (b < 10 && i ? b.toFixed(1) : Math.round(b)) + u[i]; };
+const diskPct = d => (d.used + (d.avail ?? 0)) > 0 ? 100 * d.used / (d.used + (d.avail ?? d.total - d.used)) : 0;
+const diskCol = p => p >= 95 ? "var(--bad)" : p >= 85 ? "var(--warn)" : "var(--s2)";
+const diskLabel = (h, d) => (h.alias && d.label !== "/" ? h.alias + ":" : "") + d.label;  // a separate system disk isn't part of the export
+const storeSum = disks => { let used = 0, total = 0, avail = 0, full = 0; disks.forEach(d => { used += d.used || 0; total += d.total || 0; avail += d.avail || 0; if (diskPct(d) >= 95) full++; }); return { used, total, avail, full, n: disks.length, pct: used + avail ? 100 * used / (used + avail) : 0 }; };
+function storageStrip(h) {
+  const ds = h.disks || []; if (!ds.length) return "";
+  const t = storeSum(ds);
+  const segs = ds.map((d, i) => { const p = diskPct(d); return `<div class="sseg" style="flex:${Math.max(d.total, t.total * 0.04)} 1 0" data-dtip="${esc(h.host)}|${i}"><i style="width:${clamp(p)}%;background:${diskCol(p)}"></i></div>`; }).join("");
+  return `<div class="store"><div class="trend-h"><span>Storage · ${t.n} disk${t.n > 1 ? "s" : ""}${t.full ? ` · <b style="color:var(--bad)">${t.full} almost full</b>` : ""}</span><span class="num">${fmtSize(t.used)} / ${fmtSize(t.total)} · ${fmtSize(t.avail)} free</span></div><div class="sstrip">${segs}</div></div>`;
+}
 const avgUtil = gpus => gpus.length ? gpus.reduce((a, g) => a + (g.util || 0), 0) / gpus.length : 0;
 
 /* ---------- dynamic background: hue follows GPU load ---------- */
@@ -377,6 +400,12 @@ function gpuTip(host, g) {
     ${procs || `<div style="margin-top:6px;color:var(--ok);font-weight:600">Free</div>`}`;
 }
 document.addEventListener("mousemove", e => {
+  const ds = e.target.closest?.("[data-dtip]");
+  if (ds) {
+    const [host, i] = ds.dataset.dtip.split("|"), h = S.stats?.hosts.find(x => x.host === host), d = h?.disks?.[i];
+    if (d) { const p = diskPct(d); showTip(`<div class="tt">${esc(diskLabel(h, d))}</div><div class="row"><span>Used</span><b class="num" style="color:${diskCol(p)}">${fmtSize(d.used)} / ${fmtSize(d.total)} · ${Math.round(p)}%</b></div><div class="row"><span>Free</span><b class="num">${fmtSize(d.avail)}</b></div><div class="cmd mono">${esc(d.fs)} · ${esc(d.type || "")}${d.system ? " · system disk" : ""}</div>`, e.clientX, e.clientY); }
+    return;
+  }
   const el = e.target.closest?.("[data-tip]");
   if (!el) { if (!e.target.closest?.("canvas")) hideTip(); return; }
   const [host, idx] = el.dataset.tip.split(":");
@@ -554,7 +583,7 @@ function hostCard(h) {
     </div>`;
   }).join("");
   return `<a class="hcard glass ${h.ok ? "" : "down"}" href="#/h/${encodeURIComponent(h.host)}" tabindex="0">
-    <div class="hhead"><span class="sdot"></span><div><div class="hname">${esc(h.host)}${h.via ? `<span class="via" title="direct connection failed; reached through the ${esc(h.via)} alias">via ${esc(h.via)}</span>` : ""}</div><div class="hsub">${esc(hw)}</div></div><span class="go">›</span></div>
+    <div class="hhead"><span class="sdot"></span><div><div class="hname">${esc(h.host)}${h.alias ? `<span class="aka" title="other machines see this server as ${esc(h.alias)}">${esc(h.alias)}</span>` : ""}${h.via ? `<span class="via" title="direct connection failed; reached through the ${esc(h.via)} alias">via ${esc(h.via)}</span>` : ""}</div><div class="hsub">${esc(hw)}</div></div><span class="go">›</span></div>
     ${h.ok ? "" : `<div class="errline">${h.updated ? "offline, showing last data · " : ""}${esc(h.error)}</div>`}
     ${h.updated ? `
     <div class="minis">
@@ -563,6 +592,7 @@ function hostCard(h) {
       <div class="mini"><div class="k">Load</div><div class="v num">${h.load?.[0]?.toFixed(2) ?? "–"}<small> /${h.nproc}</small></div>${bar(loadPct)}</div>
     </div>
     <div class="tiles">${tiles}</div>
+    ${storageStrip(h)}
     <div class="trend"><div class="trend-h"><span>GPU utilization · last 15 min</span><span class="num">${h.latency_ms} ms · ${ago(h.updated)}</span></div>${trendSvg(h.host, gpus.length)}</div>` : ""}
   </a>`;
 }
@@ -586,7 +616,7 @@ function renderOverview() {
     const rows = Math.ceil(g.hosts.length / cols);
     return `<section class="group ${col ? "collapsed" : ""}" style="--rows:${rows};--cols:${cols}">
       <div class="group-h"><button class="gtoggle" data-collapse="${esc(g.name)}" title="collapse">▼</button><h2>${esc(g.name)}</h2>
-        <span class="gmeta num"><b>${up}</b>/${g.hosts.length} up${g.hosts.length < g.all.length ? ` (${g.all.length - g.hosts.length} hidden)` : ""} · <b style="color:var(--ok)">${gp.filter(isFree).length}</b>/${gp.length} GPUs free · avg util <b>${Math.round(avgUtil(gp))}%</b></span><span class="line"></span></div>
+        <span class="gmeta num"><b>${up}</b>/${g.hosts.length} up${g.hosts.length < g.all.length ? ` (${g.all.length - g.hosts.length} hidden)` : ""} · <b style="color:var(--ok)">${gp.filter(isFree).length}</b>/${gp.length} GPUs free · avg util <b>${Math.round(avgUtil(gp))}%</b>${(() => { const t = storeSum(g.hosts.flatMap(h => h.disks || [])); return t.n ? ` · storage <b style="color:${diskCol(t.pct)}">${fmtSize(t.used)}</b>/${fmtSize(t.total)} (${fmtSize(t.avail)} free)` : ""; })()}</span><span class="line"></span></div>
       ${col ? "" : `<div class="grid">${g.hosts.map(hostCard).join("")}</div>`}
     </section>`;
   }).join("");
@@ -647,6 +677,7 @@ function renderDetail(host) {
   const h = S.stats.hosts.find(x => x.host === host);
   if (!h) { $("#app").innerHTML = `<div class="empty">Unknown server “${esc(host)}”. <a href="#/" style="color:var(--accent)">Back</a></div>`; S.view = null; return; }
   if (S.view !== host) buildDetail(host);
+  $(".dtitle").innerHTML = `<span class="sdot" id="d-dot"></span>${esc(host)}${h.alias ? `<span class="aka">${esc(h.alias)}</span>` : ""}`;
   $("#crumb").innerHTML = `/ ${esc(h.group)} / <b>${esc(host)}</b>${h.via ? ` <span class="via">via ${esc(h.via)}</span>` : ""}`;
   const gpus = h.gpus || [], info = h.info || {};
   $("#d-dot").style.background = h.ok ? "" : "var(--bad)";
@@ -656,7 +687,6 @@ function renderDetail(host) {
   if (!h.updated) return;
 
   const memPct = h.mem_total ? 100 * (1 - h.mem_avail / h.mem_total) : 0;
-  const swapUsed = (h.swap_total || 0) - (h.swap_free || 0);
   const gFree = gpus.filter(isFree).length, gUtil = avgUtil(gpus);
   const gMemU = gpus.reduce((a, g) => a + (g.mem_used || 0), 0), gMemT = gpus.reduce((a, g) => a + (g.mem_total || 0), 0);
   const kpi = (k, v, p) => `<div class="kpi glass"><div class="k">${k}</div><div class="v num">${v}</div>${p != null ? bar(p) : `<div class="bar" style="background:none"></div>`}</div>`;
@@ -667,7 +697,7 @@ function renderDetail(host) {
     kpi("Avg GPU util", `${Math.round(gUtil)}<small>%</small>`, gUtil) +
     kpi("GPU memory", `${(gMemU/1024).toFixed(1)}<small> / ${(gMemT/1024).toFixed(0)} GiB</small>`, gMemT ? 100 * gMemU / gMemT : 0) +
     kpi("Load (1 · 5 · 15 min)", `${h.load?.[0]?.toFixed(2) ?? "–"}<small> · ${h.load?.[1]?.toFixed(2) ?? "–"} · ${h.load?.[2]?.toFixed(2) ?? "–"}</small>`, h.nproc ? 100 * h.load[0] / h.nproc : 0) +
-    kpi("Swap", `${fmtGiB(swapUsed, 1)}<small> / ${fmtGiB(h.swap_total || 0)} GiB</small>`, h.swap_total ? 100 * swapUsed / h.swap_total : 0) +
+    (() => { const t = storeSum(h.disks || []); return `<div class="kpi glass"><div class="k">Data storage · ${t.n} disk${t.n === 1 ? "" : "s"}</div><div class="v num" style="${t.full ? "color:var(--bad)" : ""}">${fmtSize(t.used)}<small> / ${fmtSize(t.total)}</small></div>${bar(t.pct, diskCol(t.pct))}</div>`; })() +
     kpi("Uptime", days(h.uptime));
 
   // charts
@@ -703,14 +733,17 @@ function renderDetail(host) {
 
   // tabbed panel
   const top = h.top || [], disks = h.disks || [], who = h.who || [];
-  const tabs = [["procs", "Top processes", top.length], ["disks", "Disks", disks.length], ["users", "Logged in", who.length]];
+  const tabs = [["procs", "Top processes", top.length], ["disks", "Storage", disks.length], ["users", "Logged in", who.length]];
   $("#d-tabs").innerHTML = tabs.map(([k, l, n]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${l}<span class="n">${n}</span></button>`).join("");
   let body = "";
   if (S.tab === "procs") {
     body = `<table><thead><tr><th>PID</th><th>User</th><th class="r">CPU%</th><th class="r">MEM%</th><th>Elapsed</th><th>Command</th></tr></thead><tbody>${
       top.map(p => `<tr><td class="num">${esc(p.pid)}</td><td>${avatar(p.user)} ${esc(p.user)}</td><td class="r num">${p.cpu?.toFixed(1)}</td><td class="r num">${p.mem?.toFixed(1)}</td><td class="num">${esc(p.etime)}</td><td class="c mono" title="${esc(p.cmd)}">${esc(p.cmd)}</td></tr>`).join("")}</tbody></table>`;
   } else if (S.tab === "disks") {
-    body = disks.map(d => { const p = d.total ? 100 * d.used / d.total : 0; return `<div class="disk"><div class="lbl"><span><b>${esc(d.mount)}</b> <span style="color:var(--faint)">${esc(d.fs)}</span></span><b class="num">${fmtGiB(d.used)} / ${fmtGiB(d.total)} GiB · ${Math.round(p)}%</b></div>${bar(p, p >= 90 ? "var(--bad)" : p >= 75 ? "var(--warn)" : "var(--s2)")}</div>`; }).join("") || `<div class="kbd" style="padding:10px 0">none</div>`;
+    const t = storeSum(disks);
+    body = disks.length ? `<div class="stot num"><span>Total <b>${fmtSize(t.total)}</b></span><span>Used <b style="color:${diskCol(t.pct)}">${fmtSize(t.used)}</b> (${Math.round(t.pct)}%)</span><span>Free <b>${fmtSize(t.avail)}</b></span>${t.full ? `<span style="color:var(--bad)">${t.full} disk${t.full > 1 ? "s" : ""} ≥95% full</span>` : ""}</div>` +
+      disks.map(d => { const p = diskPct(d); return `<div class="disk"><div class="lbl"><span><b>${esc(diskLabel(h, d))}</b>${d.system ? `<span class="tag">system disk</span>` : ""}${p >= 95 ? `<span class="tag bad">almost full</span>` : ""}</span><b class="num" style="color:${diskCol(p)}">${Math.round(p)}%</b></div>${bar(p, diskCol(p))}<div class="dsub num"><span class="mono">${esc(d.fs)} · ${esc(d.type || "")}</span><span>${fmtSize(d.used)} used · <b style="color:var(--text)">${fmtSize(d.avail)}</b> free · ${fmtSize(d.total)} total</span></div></div>`; }).join("")
+      : `<div class="kbd" style="padding:10px 0">no local disks under /data</div>`;
   } else {
     body = `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 0">${who.map(w => `<span class="gu" style="padding-right:10px">${avatar(w.user)}<b>${esc(w.user)}</b><span style="color:var(--muted)">${w.sessions} session${w.sessions > 1 ? "s" : ""}</span></span>`).join("") || `<span class="kbd">nobody</span>`}</div>`;
   }

@@ -84,6 +84,16 @@ of `Host` names from your `~/.ssh/config`:
 }
 ```
 
+Optional: if other machines mount a server's disks under a different name (for example `ws1:/data`
+over NFS), add `_aliases` so its disks are labelled the way people see them in `df -h`:
+
+```json
+{
+  "lab-a": ["gpu-node1", "gpu-node2"],
+  "_aliases": { "gpu-node1": "ws1", "gpu-node2": "ws2" }
+}
+```
+
 ### 3. Run
 
 ```bash
@@ -118,6 +128,7 @@ on networks you trust. Never use `0.0.0.0` on a machine with a public IP.
 | `GPUMON_BIND`        | `127.0.0.1`         | address to listen on (see below) |
 | `GPUMON_INTERVAL`    | `3`                 | seconds between polls            |
 | `GPUMON_HISTORY`     | `3600`              | seconds of history kept for charts |
+| `GPUMON_DATA_ROOT`   | `/data`             | disks mounted here (and `/`) are reported as storage |
 | `GPUMON_CTL_DIR`     | `/tmp/gpumon-<uid>` | private folder for SSH connection-sharing sockets |
 
 ## Using the dashboard
@@ -125,6 +136,10 @@ on networks you trust. Never use `0.0.0.0` on a machine with a public IP.
 - **Overview:** one card per server, grouped. Hover a GPU tile to see who is using it and the command.
   Click a user at the top to highlight their GPUs everywhere.
 - **Servers ▾ (top right):** check or uncheck groups and servers to show. Your choice is remembered.
+- **Storage:** each card has a strip with one segment per local disk mounted at `/` or under `/data`
+  (sized by capacity, colored by how full it is). The group header shows the group's total, and the
+  server page has a **Storage** tab with every disk's size, used and free space. Network mounts are
+  skipped, so shared disks aren't counted twice. Set `GPUMON_DATA_ROOT` to watch a path other than `/data`.
 - **Click a server** for charts (GPU util / memory / temperature / power, CPU & RAM, load), per-GPU
   details, top processes, disks and logged-in users. Hover the charts for exact values, and click a
   legend entry to hide that series.
